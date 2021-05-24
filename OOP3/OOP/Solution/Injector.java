@@ -9,6 +9,7 @@ import javax.management.ObjectInstance;
 import java.lang.annotation.*;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -23,6 +24,12 @@ public class Injector {
     HashMap<String,Class> nameBinds;
     HashMap<Class,Object> instanceBinds;
     HashMap<Class,Supplier> supplierBinds;
+    public Injector(){
+        classBinds=new HashMap<Class,Class>();
+        nameBinds=new HashMap<String,Class>();
+        instanceBinds=new HashMap<Class,Object>();
+        supplierBinds=new HashMap<Class,Supplier>();
+    }
     public void bind(Class clazz1, Class clazz2) throws IllegalBindException{
         if(clazz1.isAssignableFrom(clazz2))
             classBinds.put(clazz1,clazz2);
@@ -48,9 +55,7 @@ public class Injector {
             throw new IllegalBindException();
     }
     public Object construct(Class clazz) throws MultipleInjectConstructorsException, NoConstructorFoundException, MultipleAnnotationOnParameterException, InvocationTargetException, InstantiationException, IllegalAccessException {
-        if(clazz.getConstructors().length>1)
-            throw new MultipleInjectConstructorsException();
-        else if(clazz.getConstructors().length<1)
+        if(clazz.getConstructors().length<1)
             throw new NoConstructorFoundException();
         else if(classBinds.containsKey(clazz))
             return construct(classBinds.get(clazz));
@@ -111,16 +116,21 @@ public class Injector {
             if(parameter.isAnnotationPresent(Named.class) && nameBinds.containsKey(parameter.getName()))
                constructed_parameters[c]=construct(nameBinds.get(parameter.getName()));
             else if(parameter.getAnnotations().length>0 && !parameter.isAnnotationPresent(Named.class))
-                constructed_parameters[c]=provides(parameter);
+                constructed_parameters[c]=provides(parameter, Arrays.stream(parameter.getAnnotations()).toList().get(0));
             else
                 constructed_parameters[c]=construct(parameter.getClass());
             c++;
         }
-    return parameters;
+    return constructed_parameters;
     }
-    private Object provides(Parameter parameter){
-        for (Class C=parameter.getAnnotations()[0].getClass();C!=Object.class ;C=C.getSuperclass()) {
-            return Arrays.stream(C.getDeclaredMethods()).filter(a->a.isAnnotationPresent(Provides.class)).toList().get(0).getDefaultValue();
+    private Object provides(Parameter parameter,Annotation n) throws InvocationTargetException, IllegalAccessException {
+        for (Class C=this.getClass();C!=Object.class ;C=C.getSuperclass()) {
+            if(Arrays.stream(C.getDeclaredMethods()).filter(a->a.isAnnotationPresent(Provides.class)).toList().size()!=0 && Arrays.stream(C.getDeclaredMethods()).filter(a->a.isAnnotationPresent(n.annotationType())).toList().size()!=0) {
+                Method m2=Arrays.stream(C.getDeclaredMethods()).filter(a -> a.isAnnotationPresent(Provides.class) && a.isAnnotationPresent(n.annotationType())).toList().get(0);
+                m2.setAccessible(true);
+                Object b=m2.invoke(this);
+                return b;
+            }
         }
         return null;
     }

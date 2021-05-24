@@ -11,9 +11,9 @@ import java.lang.annotation.Target;
 
 public class ExampleTest {
 
-    static class Superclazz {}
+    public static class Superclazz {}
 
-    static class Subclazz extends Superclazz {
+    public static class Subclazz extends Superclazz {
         @Inject
         public Subclazz() {}    // This constructor should be called because it is injected
 
@@ -53,7 +53,7 @@ public class ExampleTest {
     @Target({ElementType.PARAMETER, ElementType.METHOD})
     @interface Message {}
 
-    static class MessagePrinter {
+    public static class MessagePrinter {
         private final String message;
         // This constructor is chosen because it is injected
         // In addition, there's a @Message parameter therefore the injector
