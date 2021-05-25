@@ -228,7 +228,6 @@ public class ExampleTest {
             i.bindToInstance(String.class, i.toString());
             assertEquals("AA", i.construct(String.class));
             assertEquals("AA", i.construct(String.class));
-
             i.bindToSupplier(String.class, ()->i.toString());
             assertEquals("AAAA", i.construct(String.class));
             assertEquals("AAAAAAAA", i.construct(String.class));

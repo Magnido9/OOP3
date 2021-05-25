@@ -27,17 +27,23 @@ public class Injector {
         instanceBinds=new HashMap<Class,Object>();
         supplierBinds=new HashMap<Class,Supplier>();
     }
-    public void bind(Class clazz1, Class clazz2) throws IllegalBindException{
-        if(clazz1.isAssignableFrom(clazz2))
-            classBinds.put(clazz1,clazz2);
-        else
+    public void bind(Class clazz1, Class clazz2) throws IllegalBindException {
+        if (clazz1.isAssignableFrom(clazz2)){
+            classBinds.put(clazz1, clazz2);
+            instanceBinds.remove(clazz1);
+            supplierBinds.remove(clazz1);
+    }
+    else
             throw new IllegalBindException();
     }
     public void bindToInstance(Class clazz1, Object instance) throws IllegalBindException{
         if(instance==null)
             throw new IllegalBindException();
-        if(clazz1.isAssignableFrom(instance.getClass()))
+        if(clazz1.isAssignableFrom(instance.getClass())){
             instanceBinds.put(clazz1,instance);
+            classBinds.remove(clazz1);
+            supplierBinds.remove(clazz1);
+        }
         else
             throw new IllegalBindException();
     }
@@ -45,11 +51,10 @@ public class Injector {
         nameBinds.put(clazz2,clazz1);
     }
     public void bindToSupplier(Class clazz1, Supplier clazz2) throws IllegalBindException{
-        if(clazz2.get().getClass().equals(clazz1))
-            supplierBinds.put(clazz1,clazz2);
-        else
-            throw new IllegalBindException();
-    }
+        supplierBinds.put(clazz1,clazz2);
+        classBinds.remove(clazz1);
+        instanceBinds.remove(clazz1);
+        }
     public Object construct(Class clazz) throws MultipleInjectConstructorsException, NoConstructorFoundException, MultipleAnnotationOnParameterException, InvocationTargetException, InstantiationException, IllegalAccessException {
         if(instanceBinds.containsKey(clazz))
             return instanceBinds.get(clazz);
