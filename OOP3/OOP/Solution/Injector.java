@@ -13,7 +13,9 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 
 public class Injector {
@@ -62,17 +64,35 @@ public class Injector {
             return construct(classBinds.get(clazz));
         else if(supplierBinds.containsKey(clazz))
             return supplierBinds.get(clazz).get();
-        else if(Arrays.stream(clazz.getConstructors()).filter(a->a.isAnnotationPresent(Inject.class)).toArray().length>1)
+        else if(Arrays.stream(clazz.getDeclaredConstructors()).filter(a->a.isAnnotationPresent(Inject.class)).toArray().length>1)
             throw new MultipleInjectConstructorsException();
-        else if(Arrays.stream(clazz.getConstructors()).filter(a->a.isAnnotationPresent(Inject.class)).toArray().length==0) {
-            if(Arrays.stream(clazz.getConstructors()).filter(a -> a.getParameters().length == 0).toArray().length==0)
-                throw new NoConstructorFoundException();
-            Constructor m=Arrays.stream(clazz.getConstructors()).filter(a -> a.getParameters().length == 0).toList().get(0);
+        else if(Arrays.stream(clazz.getDeclaredConstructors()).filter(a->a.isAnnotationPresent(Inject.class)).toList().size()==0) {
+            if(Arrays.stream(clazz.getDeclaredConstructors()).filter(a -> a.getParameters().length == 0).toArray().length==0){
+                System.out.println(clazz.toString());
+                throw new NoConstructorFoundException();}
+            Constructor m=Arrays.stream(clazz.getDeclaredConstructors()).filter(a -> a.getParameters().length == 0).toList().get(0);
             m.setAccessible(true);
             Object o=m.newInstance();
+            Arrays.stream(clazz.getDeclaredMethods()).filter(a-> a.isAnnotationPresent(Inject.class)).forEach(a-> {
+                try {
+                    a.setAccessible(true);
+                    a.invoke(o ,constructParameters(a.getParameters()));
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            });
+            Arrays.stream(clazz.getDeclaredFields()).filter(a->a.isAnnotationPresent(Inject.class)).forEach(a-> {
+                try {
+                    a.setAccessible(true);
+                    a.set(o,construct(a.getType()));
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            });
             return o;
+
             } else {
-                Constructor c= Arrays.stream(clazz.getConstructors()).filter(a -> a.isAnnotationPresent(Inject.class)).toList().get(0);
+                Constructor c= Arrays.stream(clazz.getDeclaredConstructors()).filter(a -> a.isAnnotationPresent(Inject.class)).toList().get(0);
                 Object[] parameters=constructParameters(c.getParameters());
                 c.setAccessible(true);
                 Object o=c.newInstance(parameters);
@@ -93,9 +113,10 @@ public class Injector {
                         e.printStackTrace();
                     }
                 });
-                Arrays.stream(clazz.getFields()).filter(a->a.isAnnotationPresent(Inject.class)).forEach(a-> {
+                Arrays.stream(clazz.getDeclaredFields()).filter(a->a.isAnnotationPresent(Inject.class)).forEach(a-> {
                     try {
-                        a.set(o,construct(a.getClass()));
+                            a.setAccessible(true);
+                            a.set(o,construct(a.getType()));
                     } catch (IllegalAccessException e) {
                         e.printStackTrace();
                     } catch (MultipleInjectConstructorsException e) {
@@ -119,14 +140,16 @@ public class Injector {
         Named na;
         int c=0;
         for (Parameter parameter:parameters) {
-            if(parameter.isAnnotationPresent(Named.class) && nameBinds.containsKey(parameter.getName())){
+            if(parameter.getAnnotations().length>1)
+                throw new MultipleAnnotationOnParameterException();
+            if(parameter.isAnnotationPresent(Named.class) && nameBinds.containsKey(((Named) Arrays.stream(parameter.getAnnotations()).filter(a->a.annotationType()==Named.class).toList().get(0)).value())){
                 na=(Named) Arrays.stream(parameter.getAnnotations()).filter(a->a.annotationType()==Named.class).toList().get(0);
                 constructed_parameters[c]=construct(nameBinds.get(na.value()));
             }
             else if(parameter.getAnnotations().length>0 && !parameter.isAnnotationPresent(Named.class))
                 constructed_parameters[c]=provides(parameter, Arrays.stream(parameter.getAnnotations()).toList().get(0));
             else
-                constructed_parameters[c]=construct(parameter.getClass());
+                constructed_parameters[c]=construct(parameter.getType());
             c++;
         }
     return constructed_parameters;
