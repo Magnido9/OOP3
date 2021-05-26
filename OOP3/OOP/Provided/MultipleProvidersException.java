@@ -1,4 +1,4 @@
 package OOP.Provided;
 
-public class MultipleProvidersException {
+public class MultipleProvidersException extends Exception {
 }

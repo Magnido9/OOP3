@@ -1,9 +1,6 @@
 package OOP.Solution;
 
-import OOP.Provided.IllegalBindException;
-import OOP.Provided.MultipleAnnotationOnParameterException;
-import OOP.Provided.MultipleInjectConstructorsException;
-import OOP.Provided.NoConstructorFoundException;
+import OOP.Provided.*;
 
 import javax.management.ObjectInstance;
 import java.lang.annotation.*;
@@ -30,11 +27,16 @@ public class Injector {
         supplierBinds=new HashMap<Class,Supplier>();
     }
     public void bind(Class clazz1, Class clazz2) throws IllegalBindException {
+        if(clazz1==clazz2){
+            instanceBinds.remove(clazz1);
+            supplierBinds.remove(clazz1);
+            return;
+        }
         if (clazz1.isAssignableFrom(clazz2)){
             classBinds.put(clazz1, clazz2);
             instanceBinds.remove(clazz1);
             supplierBinds.remove(clazz1);
-    }
+        }
     else
             throw new IllegalBindException();
     }
@@ -57,7 +59,7 @@ public class Injector {
         classBinds.remove(clazz1);
         instanceBinds.remove(clazz1);
         }
-    public Object construct(Class clazz) throws MultipleInjectConstructorsException, NoConstructorFoundException, MultipleAnnotationOnParameterException, InvocationTargetException, InstantiationException, IllegalAccessException {
+    public Object construct(Class clazz) throws MultipleInjectConstructorsException, NoConstructorFoundException, MultipleAnnotationOnParameterException, InvocationTargetException, InstantiationException, IllegalAccessException, MultipleProvidersException {
         if(instanceBinds.containsKey(clazz))
             return instanceBinds.get(clazz);
         else if(classBinds.containsKey(clazz))
@@ -68,7 +70,6 @@ public class Injector {
             throw new MultipleInjectConstructorsException();
         else if(Arrays.stream(clazz.getDeclaredConstructors()).filter(a->a.isAnnotationPresent(Inject.class)).toList().size()==0) {
             if(Arrays.stream(clazz.getDeclaredConstructors()).filter(a -> a.getParameters().length == 0).toArray().length==0){
-                System.out.println(clazz.toString());
                 throw new NoConstructorFoundException();}
             Constructor m=Arrays.stream(clazz.getDeclaredConstructors()).filter(a -> a.getParameters().length == 0).toList().get(0);
             m.setAccessible(true);
@@ -111,6 +112,8 @@ public class Injector {
                         e.printStackTrace();
                     } catch (MultipleAnnotationOnParameterException | InstantiationException e) {
                         e.printStackTrace();
+                    } catch (MultipleProvidersException e) {
+                        e.printStackTrace();
                     }
                 });
                 Arrays.stream(clazz.getDeclaredFields()).filter(a->a.isAnnotationPresent(Inject.class)).forEach(a-> {
@@ -129,13 +132,15 @@ public class Injector {
                         e.printStackTrace();
                     } catch (InstantiationException e) {
                         e.printStackTrace();
+                    } catch (MultipleProvidersException e) {
+                        e.printStackTrace();
                     }
                 });
                 return o;
         }
     }
 
-    private Object[] constructParameters(Parameter[] parameters) throws MultipleInjectConstructorsException, NoConstructorFoundException, MultipleAnnotationOnParameterException, InvocationTargetException, InstantiationException, IllegalAccessException {
+    private Object[] constructParameters(Parameter[] parameters) throws MultipleInjectConstructorsException, NoConstructorFoundException, MultipleAnnotationOnParameterException, InvocationTargetException, InstantiationException, IllegalAccessException, MultipleProvidersException {
         Object[] constructed_parameters=new Object[parameters.length];
         Named na;
         int c=0;
@@ -154,10 +159,13 @@ public class Injector {
         }
     return constructed_parameters;
     }
-    private Object provides(Parameter parameter,Annotation n) throws InvocationTargetException, IllegalAccessException {
+    private Object provides(Parameter parameter,Annotation n) throws InvocationTargetException, IllegalAccessException, MultipleProvidersException {
         for (Class C=this.getClass();C!=Object.class ;C=C.getSuperclass()) {
-            if(Arrays.stream(C.getDeclaredMethods()).filter(a->a.isAnnotationPresent(Provides.class)).toList().size()!=0 && Arrays.stream(C.getDeclaredMethods()).filter(a->a.isAnnotationPresent(n.annotationType())).toList().size()!=0) {
-                Method m2=Arrays.stream(C.getDeclaredMethods()).filter(a -> a.isAnnotationPresent(Provides.class) && a.isAnnotationPresent(n.annotationType())).toList().get(0);
+            if(Arrays.stream(C.getDeclaredMethods()).filter(a->a.isAnnotationPresent(Provides.class) && a.getReturnType()==parameter.getType()).toList().size()!=0 && Arrays.stream(C.getDeclaredMethods()).filter(a->a.isAnnotationPresent(n.annotationType())).toList().size()!=0) {
+                if(Arrays.stream(C.getDeclaredMethods()).filter(a -> a.isAnnotationPresent(Provides.class) && a.isAnnotationPresent(n.annotationType())&& a.getReturnType()==parameter.getType()).toList().size()>1)
+                    throw new MultipleProvidersException();
+
+                Method m2=Arrays.stream(C.getDeclaredMethods()).filter(a -> a.isAnnotationPresent(Provides.class) && a.isAnnotationPresent(n.annotationType())&& a.getReturnType()==parameter.getType()).toList().get(0);
                 m2.setAccessible(true);
                 Object b=m2.invoke(this);
                 return b;
